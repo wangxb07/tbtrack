@@ -1,0 +1,54 @@
+<?php
+
+/**
+ * @file
+ * installation for tbtrack
+ */
+
+/**
+ * Implements hook_schema
+ */
+function tbtrack_schema() {
+  $schema = array();
+
+  // Product ranking info list. the data fetch from remote page that is taobao
+  // search result by tbtrack class RankingFetcher
+
+  $schema['tbtrack_ranking'] = array(
+    'description' => 'The table for product ranking',
+    'fields' => array(
+      // auto increment id
+      'rid' => array(
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'keyword' => array(
+        'description' => 'The keyword for search'
+        'type' => 'varchar',
+        'lenght' => '255',
+        'not null' => TRUE,
+      ),
+      'product_id' => array(
+        'description' => 'The taobao product ID',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'created' => array(
+        'description' => 'The Unix timestamp of the entity creation time.',
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+    ),
+    'primary key' => array('rid'),
+    'indexes' => array(
+      'tbtrack_ranking_changed' => array('changed'),
+      'tbtrack_ranking_product_id' => array('product_id'),
+      'tbtrack_ranking_keyword' => array('keyword'),
+    ),
+  );
+
+  return $schema;
+}

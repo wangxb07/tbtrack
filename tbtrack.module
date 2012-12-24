@@ -1,0 +1,12 @@
+<?php
+
+/**
+ * @file
+ * fetch data from taobao and, generate the report for product ranking
+ */
+
+function tbtrack_menu() {
+  $menu = array();
+
+  return $menu;
+}
