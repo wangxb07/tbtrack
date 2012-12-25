@@ -1,0 +1,16 @@
+name = tbtrack product
+description = Product node for taobao tracker
+core = 7.x
+package = Taobao
+version = 7.x-1.0-alpha
+project = tbtrack_product
+dependencies[] = features
+dependencies[] = field_sql_storage
+dependencies[] = node
+dependencies[] = taxonomy
+dependencies[] = text
+features[features_api][] = api:1
+features[field][] = node-products-field_keywords
+features[field][] = node-products-field_product_id
+features[node][] = products
+features[taxonomy][] = keywords

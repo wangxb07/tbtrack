@@ -1,4 +1,5 @@
 name = Taobao Tracker
-description = tracker for Taobao product ranking
+description = Tracker for Taobao product ranking
+package = Taobao
 core = 7.x
 version = 7.x-1.0-alpha

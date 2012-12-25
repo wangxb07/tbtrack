@@ -7,6 +7,190 @@
 
 function tbtrack_menu() {
   $menu = array();
+  $menu['tbtrack/debug/fetch_data'] = array(
+    'title' => 'Taobao tracker',
+    'page callback' => '_tbtrack_debug_fetch_data',
+    'access callback' => TRUE,
+  );
+
+  $menu['tbtrack/ranking_query'] = array(
+    'title' => 'Taobao track form',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('tbtrack_ranking_query_form'),
+    'access callback' => TRUE,
+  );
 
   return $menu;
+}
+
+
+
+/**
+ * debug fetch data from taobao by drupal_http_request
+ */
+function _tbtrack_debug_fetch_data() {
+  $output = array();
+
+  // TODO get keyword
+  $keyword = '红酒1';
+
+  // TODO get product id
+  $product_id = "15150880477";
+
+  // Define ranking and set defualt value to '0'
+  $ranking = 0;
+
+  $result = _tbtrack_fetch_data($keyword, $product_id, $ranking);
+
+  // TODO go on?
+
+  $output['keyword'] = array(
+    '#markup' => t('keyword: !keyword', array('!keyword' => $keyword)),
+    '#suffix' => '<br/>',
+  );
+
+  $output['product-id'] = array(
+    '#markup' => t('target product id: !product_id', array('!product_id' => $product_id)),
+    '#suffix' => '<br/>',
+  );
+
+  $output['result'] = array('#prefix' => '<hr/>');
+
+  if ($result) {
+    tbtrack_ranking_insert($keyword, $product_id, $ranking);
+
+    $output['result']['ranking'] = array(
+      '#prefix' => 'Ranking: ',
+      '#markup' => $ranking,
+      '#suffix' => '<br/>',
+    );
+
+    $output['result']['products-info'] = array(
+      '#prefix' => 'Product Info: ',
+      '#markup' => $result->plaintext,
+      '#suffix' => '<br/>',
+    );
+  } else {
+    $output['result']['empty'] = array(
+      '#markup' => t('not found'),
+    );
+  }
+
+  return $output;
+}
+
+/**
+ * insert ranking info into database
+ */
+function tbtrack_ranking_insert($keyword, $product_id, $ranking) {
+  return db_insert('tbtrack_ranking')->fields(array(
+      'keyword' => $keyword,
+      'product_id' => $product_id,
+      'ranking' => $ranking,
+      'created' => time()
+    ));
+}
+
+/**
+ * ranking query form
+ */
+function tbtrack_ranking_query_form($form, &$form_state) {
+  $form['keyword'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Keyword'),
+    '#required' => TRUE,
+    '#default_value' => isset($form_state['values']['keyword']) ? $form_state['values']['keyword'] : ''
+  );
+
+  $form['product_id'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Product ID'),
+    '#required' => TRUE,
+    '#default_value' => isset($form_state['values']['product_id']) ? $form_state['values']['product_id'] : ''
+  );
+
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Query'),
+    '#weight' => 100,
+  );
+
+  return $form;
+}
+
+/**
+ * Validation handler for tbtrack_ranking_query_form
+ */
+function tbtrack_ranking_query_form_validate($form, &$form_state) {
+}
+
+/**
+ * Submit handler for tbtrack_ranking_query_form
+ */
+function tbtrack_ranking_query_form_submit($form, &$form_state) {
+  $output = array();
+
+  $keyword = $form_state['values']['keyword'];
+  $product_id = $form_state['values']['product_id'];
+
+  $ranking = 0;
+  $result = _tbtrack_fetch_data($keyword, $product_id, $ranking);
+
+  if ($result) {
+    drupal_set_message(t('Keywords is "!keyword" and product ID is "!product_id", ranking is !ranking. <br/>Product info: !product_info',
+        array('!keyword' => $keyword, '!product_id' => $product_id, '!ranking' => $ranking, '!product_info' => $result->plaintext)));
+  } else {
+    drupal_set_message(t('not found'));
+  }
+}
+
+/**
+ * fetch data function
+ */
+function _tbtrack_fetch_data($keyword, $product_id, &$ranking = 0, $page_offset = NULL) {
+  $old_keyword = $keyword;
+  $keyword = iconv('UTF-8', 'GBK', $old_keyword);
+
+  // TODO configurable page size
+  $page_size = 60;
+
+  // TODO build request params
+  $host = "http://list.tmall.com";
+  $path = "/search_dispatcher.htm";
+
+  $headers = array();
+
+  // TODO configurable header info
+  $options['max_redirects'] = 255;
+  $options['headers']['User-Agent'] = 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:17.0) Gecko/20100101 Firefox/17.0';
+
+  // build url
+  if ($page_offset === NULL) {
+    $url = $host . $path . "?q=" . urlencode($keyword);
+  } else {
+    $url = $host . $path
+      . "?q=" . urlencode($keyword)
+      . "&n=" . $page_size
+      . "&s=" . $page_offset;
+  }
+
+  // send request
+  $response = drupal_http_request($url, $options);
+
+  // process result
+  if ($response->code == 200) {
+    $html = str_get_html(iconv('GBK', 'UTF-8', $response->data));
+    foreach($html->find('#J_ItemList div.product') as $e) {
+      $ranking ++;
+      $property = 'data-id';
+      if ($e->{$property} == $product_id) {
+        return $e;
+      }
+    }
+  }
+  // TODO configurable page limit
+  if ($ranking >= $page_size && $ranking < $page_size * 10 ) {
+    return _tbtrack_fetch_data($old_keyword, $product_id, $ranking, $ranking);
+  }
+  return FALSE;
 }

@@ -1,0 +1,7 @@
+<?php
+/**
+ * @file
+ * Code for the tbtrack product feature.
+ */
+
+include_once 'tbtrack_product.features.inc';
