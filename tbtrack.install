@@ -31,8 +31,8 @@ function tbtrack_schema() {
       ),
       'product_id' => array(
         'description' => 'The taobao product ID',
-        'type' => 'int',
-        'unsigned' => TRUE,
+        'type' => 'varchar',
+        'length' => '255',
         'not null' => TRUE,
       ),
       'ranking' => array(

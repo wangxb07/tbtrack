@@ -13,6 +13,13 @@ function tbtrack_menu() {
     'access callback' => TRUE,
   );
 
+  $menu['tbtrack/fetch_all'] = array(
+    'title' => 'Taobao track fetch all',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('tbtrack_fetch_all_form'),
+    'access callback' => TRUE,
+  );
+
   $menu['tbtrack/ranking_query'] = array(
     'title' => 'Taobao track form',
     'page callback' => 'drupal_get_form',
@@ -31,52 +38,114 @@ function tbtrack_menu() {
 function _tbtrack_debug_fetch_data() {
   $output = array();
 
-  // TODO get keyword
-  $keyword = '红酒1';
 
-  // TODO get product id
-  $product_id = "15150880477";
-
-  // Define ranking and set defualt value to '0'
-  $ranking = 0;
-
-  $result = _tbtrack_fetch_data($keyword, $product_id, $ranking);
-
-  // TODO go on?
-
-  $output['keyword'] = array(
-    '#markup' => t('keyword: !keyword', array('!keyword' => $keyword)),
-    '#suffix' => '<br/>',
-  );
-
-  $output['product-id'] = array(
-    '#markup' => t('target product id: !product_id', array('!product_id' => $product_id)),
-    '#suffix' => '<br/>',
-  );
-
-  $output['result'] = array('#prefix' => '<hr/>');
-
-  if ($result) {
-    tbtrack_ranking_insert($keyword, $product_id, $ranking);
-
-    $output['result']['ranking'] = array(
-      '#prefix' => 'Ranking: ',
-      '#markup' => $ranking,
-      '#suffix' => '<br/>',
-    );
-
-    $output['result']['products-info'] = array(
-      '#prefix' => 'Product Info: ',
-      '#markup' => $result->plaintext,
-      '#suffix' => '<br/>',
-    );
-  } else {
-    $output['result']['empty'] = array(
-      '#markup' => t('not found'),
-    );
-  }
 
   return $output;
+}
+
+/**
+ * fetch all form
+ */
+function tbtrack_fetch_all_form($form, &$form_state) {
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Query'),
+  );
+
+  return $form;
+}
+
+/**
+ * Submit handler for tbtrack_fetch_all_form
+ */
+function tbtrack_fetch_all_form_submit() {
+  // query database and get records of product
+  $ids = db_select('node', 'n')->fields('n', array('nid'))
+    ->condition('type', 'products')
+    ->execute()
+    ->fetchCol();
+
+  if ($ids) {
+    // flat keywords from products
+    $keywords = array();
+    foreach ($ids as $id) {
+      $product = entity_metadata_wrapper('node', $id);
+      foreach ($product->field_keywords->value() as $keyword) {
+        $keywords[] = array(
+          'name' => $keyword->name,
+          'product_id' => $product->field_product_id->value()
+        );
+      }
+    }
+
+    $batch = array(
+      'operations' => array(
+        array('_tbtrack_batch_fetch_process', array($keywords))
+      ),
+      'finished' => '_tbtrack_batch_fetch_finished',
+      'title' => t('Processing'),
+      // We use a single multi-pass operation, so the default
+      // 'Remaining x of y operations' message will be confusing here.
+      'progress_message' => '',
+      'error_message' => t('The fetch ranking has encountered an error.'),
+      // The operations do not live in the .module file, so we need to
+      // tell the batch engine which file to load before calling them.
+      'file' => drupal_get_path('module', 'tbtrack') . '/tbtrack.module',
+    );
+    batch_set($batch);
+  } else {
+    drupal_set_message(t('no product!'));
+  }
+}
+
+/**
+ * Ranking Batch fetch process
+ */
+function _tbtrack_batch_fetch_process($keywords, &$context) {
+  if (!isset($context['sandbox']['progress'])) {
+    $context['sandbox']['progress'] = 0;
+    $context['sandbox']['max'] = count($keywords);
+    $context['sandbox']['keywords'] = $keywords;
+  }
+
+  // Process nodes by groups of 1.
+  $keyword = array_shift($context['sandbox']['keywords']);
+  // Update our progress information.
+  $context['sandbox']['progress']++;
+
+  $ranking = 0;
+
+  dd(t('keyword is !keyword product id is !product_id', array(
+        '!keyword' => $keyword['name'],
+        '!product_id' => $keyword['product_id'],
+      )));
+
+  $result = _tbtrack_fetch_data($keyword['name'], $keyword['product_id'], $ranking);
+  if ($result) {
+    dd(t('ranking is !ranking', array('!ranking' => $ranking)));
+    tbtrack_ranking_insert($keyword['name'], $keyword['product_id'], $ranking);
+  } else {
+    dd(t('out of ranking'));
+  }
+
+  if ($context['sandbox']['progress'] != $context['sandbox']['max']) {
+    $context['finished'] = $context['sandbox']['progress'] / $context['sandbox']['max'];
+  }
+}
+
+/**
+ * Ranking batch fetch finished callback
+ */
+function _tbtrack_batch_fetch_finished($success, $results, $operations) {
+  if ($success) {
+    drupal_set_message(t('The ranking fetch has been performed.'));
+  }
+  else {
+    drupal_set_message(t('An error occurred and processing did not complete.'), 'error');
+    $message = format_plural(count($results), '1 item successfully processed:', '@count items successfully processed:');
+    $message .= theme('item_list', array('items' => $results));
+    drupal_set_message($message);
+  }
 }
 
 /**
@@ -88,7 +157,7 @@ function tbtrack_ranking_insert($keyword, $product_id, $ranking) {
       'product_id' => $product_id,
       'ranking' => $ranking,
       'created' => time()
-    ));
+    ))->execute();
 }
 
 /**
@@ -154,7 +223,7 @@ function _tbtrack_fetch_data($keyword, $product_id, &$ranking = 0, $page_offset 
   // TODO configurable page size
   $page_size = 60;
 
-  // TODO build request params
+  // build request params
   $host = "http://list.tmall.com";
   $path = "/search_dispatcher.htm";
 
@@ -180,7 +249,7 @@ function _tbtrack_fetch_data($keyword, $product_id, &$ranking = 0, $page_offset 
   // process result
   if ($response->code == 200) {
     $html = str_get_html(iconv('GBK', 'UTF-8', $response->data));
-    foreach($html->find('#J_ItemList div.product') as $e) {
+    foreach ($html->find('#J_ItemList div.product') as $e) {
       $ranking ++;
       $property = 'data-id';
       if ($e->{$property} == $product_id) {
