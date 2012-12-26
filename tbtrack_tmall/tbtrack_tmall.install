@@ -1,0 +1,14 @@
+<?php
+
+/**
+ * @file The installation for tmall tracker, this installation additional fields
+ * to the track product
+ */
+
+function tbtrack_tmall_install() {
+  tbtrack_create_field_product_id('tbtrack_tmall_product_id', 'TMall Product ID');
+}
+
+function tbtrack_tmall_uninstall() {
+  tbtrack_delete_field_product_id('tbtrack_tmall_product_id');
+}

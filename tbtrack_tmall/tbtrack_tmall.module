@@ -1,0 +1,34 @@
+<?php
+
+/**
+ * @file
+ * define tmall platform info and implements selector callback
+ */
+
+function tbtrack_tmall_tbtrack_platform_info() {
+  return array(
+    'tmall' => array(
+      'title' => 'TMall',
+      // Specify a field used to store the product ID of the platform
+      'field' => 'tbtrack_tmall_product_id',
+      'search uri' => array(
+        'host' => 'http://list.tmall.com',
+        'path' => '/search_dispatcher.htm',
+      ),
+      'charset' => 'GBK',
+      'selector callback' => '_tbtrack_selector_tmall',
+      'selector formula' => '#J_ItemList div.product',
+    ),
+  );
+}
+
+/**
+ * The selector for tmall that to determine whether the elements matched
+ */
+function _tbtrack_selector_tmall($e, $product_id) {
+  $property = 'data-id';
+  if ($e->{$property} == $product_id) {
+    return $e;
+  }
+  return FALSE;
+}
