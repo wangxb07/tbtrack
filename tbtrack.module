@@ -30,16 +30,11 @@ function tbtrack_menu() {
   return $menu;
 }
 
-
-
 /**
  * debug fetch data from taobao by drupal_http_request
  */
 function _tbtrack_debug_fetch_data() {
   $output = array();
-
-
-
   return $output;
 }
 
@@ -68,13 +63,26 @@ function tbtrack_fetch_all_form_submit() {
   if ($ids) {
     // flat keywords from products
     $keywords = array();
+    $platforms = tbtrack_get_platform_info();
+
     foreach ($ids as $id) {
+      // all products
       $product = entity_metadata_wrapper('node', $id);
+      // all keywords for product
       foreach ($product->field_keywords->value() as $keyword) {
-        $keywords[] = array(
-          'name' => $keyword->name,
-          'product_id' => $product->field_product_id->value()
-        );
+        // all platforms
+        foreach ($platforms as $name => $platform) {
+          $product_id = $product->{$platform['field']}->value();
+          if (empty($product_id)) {
+            continue;
+          }
+          $keywords[] = array(
+            'name' => $keyword->name,
+            'product_id' => $product_id,
+            'platform_info' => $platform,
+            'platform_name' => $name,
+          );
+        }
       }
     }
 
@@ -115,15 +123,16 @@ function _tbtrack_batch_fetch_process($keywords, &$context) {
 
   $ranking = 0;
 
-  dd(t('keyword is !keyword product id is !product_id', array(
+  dd(t('keyword is !keyword product id is !product_id platform is !platform', array(
         '!keyword' => $keyword['name'],
         '!product_id' => $keyword['product_id'],
+        '!platform' => $keyword['platform_name'],
       )));
 
-  $result = _tbtrack_fetch_data($keyword['name'], $keyword['product_id'], $ranking);
+  $result = _tbtrack_fetch_data($keyword['name'], $keyword['product_id'], $keyword['platform_info'], $ranking);
   if ($result) {
     dd(t('ranking is !ranking', array('!ranking' => $ranking)));
-    tbtrack_ranking_insert($keyword['name'], $keyword['product_id'], $ranking);
+    tbtrack_ranking_insert($keyword['name'], $keyword['product_id'], $keyword['platform_name'], $ranking);
   } else {
     dd(t('out of ranking'));
   }
@@ -151,10 +160,11 @@ function _tbtrack_batch_fetch_finished($success, $results, $operations) {
 /**
  * insert ranking info into database
  */
-function tbtrack_ranking_insert($keyword, $product_id, $ranking) {
+function tbtrack_ranking_insert($keyword, $product_id, $platform, $ranking) {
   return db_insert('tbtrack_ranking')->fields(array(
       'keyword' => $keyword,
       'product_id' => $product_id,
+      'platform' => $platform,
       'ranking' => $ranking,
       'created' => time()
     ))->execute();
@@ -171,12 +181,20 @@ function tbtrack_ranking_query_form($form, &$form_state) {
     '#default_value' => isset($form_state['values']['keyword']) ? $form_state['values']['keyword'] : ''
   );
 
-  $form['product_id'] = array(
-    '#type' => 'textfield',
-    '#title' => t('Product ID'),
-    '#required' => TRUE,
-    '#default_value' => isset($form_state['values']['product_id']) ? $form_state['values']['product_id'] : ''
+  $form['product'] = array(
+    '#type' => 'fieldset',
+    '#title' => 'Product ID',
   );
+
+  $platforms = tbtrack_get_platform_info();
+  foreach ($platforms as $platform) {
+    $form['product'][$platform['field']] = array(
+      '#type' => 'textfield',
+      '#title' => t('!platform Product ID', array('!platform' => $platform['title'])),
+      '#required' => TRUE,
+      '#default_value' => isset($form_state['values'][$platform['field']]) ? $form_state['values'][$platform['field']] : ''
+    );
+  }
 
   $form['submit'] = array(
     '#type' => 'submit',
@@ -200,34 +218,59 @@ function tbtrack_ranking_query_form_submit($form, &$form_state) {
   $output = array();
 
   $keyword = $form_state['values']['keyword'];
-  $product_id = $form_state['values']['product_id'];
 
   $ranking = 0;
-  $result = _tbtrack_fetch_data($keyword, $product_id, $ranking);
+  $message = FALSE;
+  foreach(tbtrack_get_platform_info() as $name => $platform) {
+    $product_id = $form_state['values'][$platform['field']];
+    if (empty($product_id)) {
+      continue;
+    }
+    if($result = _tbtrack_fetch_data($keyword, $product_id, $platform, $ranking)) {
+      $message .= t('Keywords is "!keyword" and '
+                  .'product ID is "!product_id" and '
+                  .'platform is "!platform", ranking is !ranking. '
+                  .'<br/>Product info: !product_info<br/>',
+                  array(
+                    '!keyword' => $keyword,
+                    '!product_id' => $product_id,
+                    '!platform' => $name,
+                    '!ranking' => $ranking,
+                    '!product_info' => $result->plaintext
+                  )
+      );
+    }
+  }
 
-  if ($result) {
-    drupal_set_message(t('Keywords is "!keyword" and product ID is "!product_id", ranking is !ranking. <br/>Product info: !product_info',
-        array('!keyword' => $keyword, '!product_id' => $product_id, '!ranking' => $ranking, '!product_info' => $result->plaintext)));
+  if ($message) {
+    drupal_set_message($message);
   } else {
     drupal_set_message(t('not found'));
   }
 }
 
 /**
+ * Receive platform data from defined in this function and hook returns
+ */
+function tbtrack_get_platform_info() {
+  return  module_invoke_all('tbtrack_platform_info');
+}
+
+/**
  * fetch data function
  */
-function _tbtrack_fetch_data($keyword, $product_id, &$ranking = 0, $page_offset = NULL) {
+function _tbtrack_fetch_data($keyword, $product_id, $platform, &$ranking = 0, $page_offset = NULL) {
   $old_keyword = $keyword;
-  $keyword = iconv('UTF-8', 'GBK', $old_keyword);
+  $charset = str_replace("-", "", strtolower($platform['charset']));
+  if ($charset != 'utf8') {
+    $keyword = iconv('UTF-8', $charset, $old_keyword);
+  }
+
+  // current page ranking
+  $page_ranking = 0;
 
   // TODO configurable page size
   $page_size = 60;
-
-  // build request params
-  $host = "http://list.tmall.com";
-  $path = "/search_dispatcher.htm";
-
-  $headers = array();
 
   // TODO configurable header info
   $options['max_redirects'] = 255;
@@ -235,9 +278,9 @@ function _tbtrack_fetch_data($keyword, $product_id, &$ranking = 0, $page_offset 
 
   // build url
   if ($page_offset === NULL) {
-    $url = $host . $path . "?q=" . urlencode($keyword);
+    $url = $platform['search uri']['host'] . $platform['search uri']['path'] . "?q=" . urlencode($keyword);
   } else {
-    $url = $host . $path
+    $url = $platform['search uri']['host'] . $platform['search uri']['path']
       . "?q=" . urlencode($keyword)
       . "&n=" . $page_size
       . "&s=" . $page_offset;
@@ -246,20 +289,123 @@ function _tbtrack_fetch_data($keyword, $product_id, &$ranking = 0, $page_offset 
   // send request
   $response = drupal_http_request($url, $options);
 
-  // process result
+  // process result by platform selector callback
   if ($response->code == 200) {
-    $html = str_get_html(iconv('GBK', 'UTF-8', $response->data));
-    foreach ($html->find('#J_ItemList div.product') as $e) {
-      $ranking ++;
-      $property = 'data-id';
-      if ($e->{$property} == $product_id) {
-        return $e;
+    if ($charset != 'utf8') {
+      $html = str_get_html(iconv($charset, 'UTF-8', $response->data));
+    } else {
+      $html = str_get_html($response->data);
+    }
+
+    foreach ($html->find($platform['selector formula']) as $e) {
+      $page_ranking ++;
+      if ($matched = call_user_func_array($platform['selector callback'], array($e, $product_id))) {
+        $ranking += $page_ranking;
+        return $matched;
       }
     }
+  } else {
+    return FALSE;
   }
+
+  $ranking += $page_size;
   // TODO configurable page limit
   if ($ranking >= $page_size && $ranking < $page_size * 10 ) {
-    return _tbtrack_fetch_data($old_keyword, $product_id, $ranking, $ranking);
+    return _tbtrack_fetch_data($old_keyword, $product_id, $platform, $ranking, $ranking);
   }
   return FALSE;
+}
+
+/**
+ * Implements hook_node_view().
+ */
+function tbtrack_node_view($node, $view_mode) {
+  if ($view_mode == 'full' && $node->type == 'products') {
+    $header = array(
+      'keyword' => array('data' => t('Keyword'), 'field' => 'keyword'),
+      'ranking' => array('data' => t('Ranking'), 'field' => 'ranking'),
+      'created' => array('data' => t('Created'), 'field' => 'created', 'sort' => 'desc'),
+    );
+
+    $product = entity_metadata_wrapper('node', $node->nid);
+    $platforms = tbtrack_get_platform_info();
+
+    $node->content['ranking'] = array(
+      '#prefix' => 'Ranking'
+    );
+
+    foreach ($platforms as $name => $platform) {
+      $result = db_select('tbtrack_ranking', 'r')->fields('r')
+        ->condition('product_id', $product->{$platform['field']}->value())
+        ->condition('platform', $name)
+        ->execute();
+
+      $rows = array();
+      while ($record = $result->fetchAssoc()) {
+        $rows[$record['rid']] = array(
+          'keyword' => $record['keyword'],
+          'ranking' => $record['ranking'],
+          'created' => format_date($record['created'], 'short'),
+        );
+      }
+
+      $node->content['ranking'][$name] = array(
+        '#prefix' => t('<h4>Ranking table for !platform</h4>', array('!platform' => $platform['title'])),
+        '#theme' => 'table',
+        '#header' => $header,
+        '#rows' => $rows,
+        '#empty' => t('No content available.'),
+      );
+    }
+  }
+}
+
+/**
+ * create product id field for product node
+ */
+function tbtrack_create_field_product_id($field_name, $label) {
+  // create id field for tmall product
+  $field = array(
+    'field_name' => $field_name,
+    'cardinality' => 1,
+    'type' => 'text',
+    'settings'    => array(
+      'max_length' => 60,
+    ),
+  );
+
+  if (!field_info_field($field_name)) {
+    field_create_field($field);
+  }
+
+  // create id field instance
+  $instance = array(
+    'entity_type' => 'node',
+    'bundle' => 'products',
+    'field_name' => $field_name,
+    'label' => $label,
+    'widget' => array(
+      'type' => 'text_textfield',
+    ),
+  );
+  if (!field_info_instance($instance['entity_type'], $instance['field_name'], $instance['bundle'])) {
+      field_create_instance($instance);
+  }
+}
+
+/**
+ * delete product id field by field_name
+ */
+function tbtrack_delete_field_product_id($field_name) {
+  if (field_info_field($field_name)) {
+    field_delete_field($field_name);
+  }
+  $instance = array(
+    'entity_type' => 'node',
+    'field_name' => $field_name,
+    'bundle' => 'products',
+  );
+  if (field_info_instance($instance['entity_type'], $instance['field_name'], $instance['bundle'])) {
+    field_delete_instance($instance);
+  }
 }

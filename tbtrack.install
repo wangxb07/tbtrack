@@ -35,6 +35,12 @@ function tbtrack_schema() {
         'length' => '255',
         'not null' => TRUE,
       ),
+      'platform' => array(
+        'description' => 'The name of platform',
+        'type' => 'varchar',
+        'length' => '255',
+        'not null' => TRUE,
+      ),
       'ranking' => array(
         'description' => 'The taobao product ranking',
         'type' => 'int',
