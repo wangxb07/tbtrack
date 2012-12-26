@@ -122,16 +122,8 @@ function _tbtrack_batch_fetch_process($keywords, &$context) {
   $context['sandbox']['progress']++;
 
   $ranking = 0;
-
-  dd(t('keyword is !keyword product id is !product_id platform is !platform', array(
-        '!keyword' => $keyword['name'],
-        '!product_id' => $keyword['product_id'],
-        '!platform' => $keyword['platform_name'],
-      )));
-
   $result = _tbtrack_fetch_data($keyword['name'], $keyword['product_id'], $keyword['platform_info'], $ranking);
   if ($result) {
-    dd(t('ranking is !ranking', array('!ranking' => $ranking)));
     tbtrack_ranking_insert($keyword['name'], $keyword['product_id'], $keyword['platform_name'], $ranking);
   } else {
     dd(t('out of ranking'));
@@ -171,14 +163,13 @@ function tbtrack_ranking_insert($keyword, $product_id, $platform, $ranking) {
 }
 
 /**
- * ranking query form
+ * The form for query single keywords
  */
 function tbtrack_ranking_query_form($form, &$form_state) {
   $form['keyword'] = array(
     '#type' => 'textfield',
     '#title' => t('Keyword'),
     '#required' => TRUE,
-    '#default_value' => isset($form_state['values']['keyword']) ? $form_state['values']['keyword'] : ''
   );
 
   $form['product'] = array(
@@ -191,8 +182,7 @@ function tbtrack_ranking_query_form($form, &$form_state) {
     $form['product'][$platform['field']] = array(
       '#type' => 'textfield',
       '#title' => t('!platform Product ID', array('!platform' => $platform['title'])),
-      '#required' => TRUE,
-      '#default_value' => isset($form_state['values'][$platform['field']]) ? $form_state['values'][$platform['field']] : ''
+      '#required' => FALSE,
     );
   }
 
@@ -202,7 +192,58 @@ function tbtrack_ranking_query_form($form, &$form_state) {
     '#weight' => 100,
   );
 
+  if (!isset($form_state['values']) || $form_state['values']['keyword'] == '') {
+    return $form;
+  }
+
+  $keyword = $form_state['values']['keyword'];
+
+  $form['results'] = array('#type' => 'container', '#attributes' => array('class' => array('container-inline')));
+  $form['results']['keyword'] = array('#markup' => $keyword, '#post_render' => array('_tbtrack_add_div'));
+
+  foreach(tbtrack_get_platform_info() as $name => $platform) {
+    if (!isset($form_state['values'][$platform['field']]) || empty($form_state['values'][$platform['field']])) {
+      continue;
+    }
+    $ranking = 0;
+    $product_id = $form_state['values'][$platform['field']];
+    if($result = _tbtrack_fetch_data($keyword, $product_id, $platform, $ranking)) {
+      $form['results'][$name]['product'] = array(
+        '#post_render' => array('_tbtrack_add_div'),
+        '#prefix' => '<label>' . $platform['title'] . 'Product ID: </label>',
+        '#markup' => $product_id,
+      );
+      $form['results'][$name]['platform'] = array(
+        '#post_render' => array('_tbtrack_add_div'),
+        '#prefix' => '<label>Platform: </label>',
+        '#markup' => $platform['title'],
+      );
+      $form['results'][$name]['ranking'] = array(
+        '#post_render' => array('_tbtrack_add_div'),
+        '#prefix' => '<label>Ranking: </label>',
+        '#markup' => $ranking,
+      );
+      $form['results'][$name]['product info'] = array(
+        '#post_render' => array('_tbtrack_add_div'),
+        '#prefix' => '<label>Product infomation: </label>',
+        '#markup' => $result->plaintext,
+      );
+    } else {
+      $form['results'][$name]['not found'] = array(
+        '#post_render' => array('_tbtrack_add_div'),
+        '#markup' => t('keyword for !platform not found that product id', array('!platform' => $platform['title'])),
+      );
+    }
+  }
+
   return $form;
+}
+
+/**
+ * render helper function
+ */
+function _tbtrack_add_div($markup, $element) {
+  return "<div style='display:block'>" . $markup . "</div>";
 }
 
 /**
@@ -215,38 +256,10 @@ function tbtrack_ranking_query_form_validate($form, &$form_state) {
  * Submit handler for tbtrack_ranking_query_form
  */
 function tbtrack_ranking_query_form_submit($form, &$form_state) {
-  $output = array();
-
-  $keyword = $form_state['values']['keyword'];
-
-  $ranking = 0;
-  $message = FALSE;
-  foreach(tbtrack_get_platform_info() as $name => $platform) {
-    $product_id = $form_state['values'][$platform['field']];
-    if (empty($product_id)) {
-      continue;
-    }
-    if($result = _tbtrack_fetch_data($keyword, $product_id, $platform, $ranking)) {
-      $message .= t('Keywords is "!keyword" and '
-                  .'product ID is "!product_id" and '
-                  .'platform is "!platform", ranking is !ranking. '
-                  .'<br/>Product info: !product_info<br/>',
-                  array(
-                    '!keyword' => $keyword,
-                    '!product_id' => $product_id,
-                    '!platform' => $name,
-                    '!ranking' => $ranking,
-                    '!product_info' => $result->plaintext
-                  )
-      );
-    }
+  if ($form_state['values']['keyword'] == '') {
+    form_set_error('keyword', t('Please enter some keywords.'));
   }
-
-  if ($message) {
-    drupal_set_message($message);
-  } else {
-    drupal_set_message(t('not found'));
-  }
+  $form_state['rebuild'] = TRUE;
 }
 
 /**
