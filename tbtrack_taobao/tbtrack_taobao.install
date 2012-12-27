@@ -1,0 +1,14 @@
+<?php
+
+/**
+ * @file The installation for taobao tracker, this installation additional fields
+ * to the track product
+ */
+
+function tbtrack_taobao_install() {
+  tbtrack_create_field_product_id('tbtrack_taobao_product_id', 'Taobao Product ID');
+}
+
+function tbtrack_taobao_uninstall() {
+  tbtrack_delete_field_product_id('tbtrack_taobao_product_id');
+}
