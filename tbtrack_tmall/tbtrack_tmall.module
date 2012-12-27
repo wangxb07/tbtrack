@@ -11,14 +11,14 @@ function tbtrack_tmall_tbtrack_platform_info() {
       'title' => 'TMall',
       // Specify a field used to store the product ID of the platform
       'field' => 'tbtrack_tmall_product_id',
-      'search uri' => array(
-        'host' => 'http://list.tmall.com',
-        'path' => '/search_dispatcher.htm',
+      'ranking' => array(
+        'search host' => 'http://list.tmall.com',
+        'search path' => '/search_dispatcher.htm',
+        'charset' => 'GBK',
+        'page size' => 60,
+        'selector callback' => '_tbtrack_tmall_selector',
+        'selector formula' => '#J_ItemList div.product',
       ),
-      'charset' => 'GBK',
-      'page size' => 60,
-      'selector callback' => '_tbtrack_tmall_selector',
-      'selector formula' => '#J_ItemList div.product',
     ),
   );
 }

@@ -53,8 +53,7 @@ function tbtrack_ranking_query_all_form_submit() {
           $keywords[] = array(
             'name' => $keyword->name,
             'product_id' => $product_id,
-            'platform_info' => $platform,
-            'platform_name' => $name,
+            'platform' => $name,
           );
         }
       }
@@ -90,23 +89,29 @@ function tbtrack_ranking_batch_query_helper($keywords) {
  * Ranking Batch fetch process
  */
 function _tbtrack_ranking_batch_query_process($keywords, &$context) {
+  if (count($keywords) == 0) {
+    $context['finished'] = 1;
+    return FALSE;
+  }
+
   if (!isset($context['sandbox']['progress'])) {
-    $context['sandbox']['progress'] = 0;
     $context['sandbox']['max'] = count($keywords);
+    $context['sandbox']['progress'] = 0;
     $context['sandbox']['keywords'] = $keywords;
   }
 
   // Process nodes by groups of 1.
   $keyword = array_shift($context['sandbox']['keywords']);
   // Update our progress information.
+  dd($context['sandbox']['progress']);
   $context['sandbox']['progress']++;
 
   $ranking = 0;
-  $result = tbtrack_ranking_remote_query($keyword['name'], $keyword['product_id'], $keyword['platform_info'], $ranking);
+  $result = tbtrack_ranking_remote_query($keyword['name'], $keyword['product_id'], $keyword['platform'], $ranking);
   if ($result) {
-    tbtrack_ranking_insert($keyword['name'], $keyword['product_id'], $keyword['platform_name'], $ranking);
+    tbtrack_ranking_insert($keyword['name'], $keyword['product_id'], $keyword['platform'], $ranking);
   } else {
-    dd(t('out of ranking'));
+    dd(t('!keyword !product_id out of ranking', array('!keyword' => $keyword['name'], '!product_id' => $product_id)));
   }
 
   if ($context['sandbox']['progress'] != $context['sandbox']['max']) {
@@ -187,7 +192,7 @@ function tbtrack_ranking_query_form($form, &$form_state) {
     }
     $ranking = 0;
     $product_id = $form_state['values'][$platform['field']];
-    if($result = tbtrack_ranking_remote_query($keyword, $product_id, $platform, $ranking)) {
+    if($result = tbtrack_ranking_remote_query($keyword, $product_id, $name, $ranking)) {
       $form['results'][$name]['product'] = array(
         '#post_render' => array('_tbtrack_add_div'),
         '#prefix' => '<label>' . $platform['title'] . 'Product ID: </label>',
@@ -236,20 +241,36 @@ function tbtrack_ranking_query_form_submit($form, &$form_state) {
 }
 
 /**
- * fetch data function
+ * query remote ranking info helper function
+ *
+ * @param String $keyword
+ * @param String $product_id platform product id
+ * @param String $platform platform name
+ * @param Integer $ranking
+ * @param Integer $page_offset
+ *
+ * @return html element | FALSE
  */
 function tbtrack_ranking_remote_query($keyword, $product_id, $platform, &$ranking = 0, $page_offset = NULL) {
-  $old_keyword = $keyword;
-  $charset = str_replace("-", "", strtolower($platform['charset']));
+  $platform_info = tbtrack_load_platform_info($platform, 'ranking');
+
+  if (empty($platform_info)) {
+    return FALSE;
+  }
+
+  $config = $platform_info['ranking'];
+
+  $orig_keyword = $keyword;
+  $charset = str_replace("-", "", strtolower($config['charset']));
   if ($charset != 'utf8') {
-    $keyword = iconv('UTF-8', $charset, $old_keyword);
+    $keyword = iconv('UTF-8', $charset, $orig_keyword);
   }
 
   // current page ranking
   $page_ranking = 0;
 
   // TODO configurable page size
-  $page_size = $platform['page size'];
+  $page_size = $config['page size'];
 
   // TODO configurable header info
   $options['max_redirects'] = 255;
@@ -257,9 +278,9 @@ function tbtrack_ranking_remote_query($keyword, $product_id, $platform, &$rankin
 
   // build url
   if ($page_offset === NULL) {
-    $url = $platform['search uri']['host'] . $platform['search uri']['path'] . "?q=" . urlencode($keyword);
+    $url = $config['search host'] . $config['search path'] . "?q=" . urlencode($keyword);
   } else {
-    $url = $platform['search uri']['host'] . $platform['search uri']['path']
+    $url = $config['search host'] . $config['search path']
       . "?q=" . urlencode($keyword)
       . "&n=" . $page_size
       . "&s=" . $page_offset;
@@ -276,9 +297,9 @@ function tbtrack_ranking_remote_query($keyword, $product_id, $platform, &$rankin
       $html = str_get_html($response->data);
     }
 
-    foreach ($html->find($platform['selector formula']) as $e) {
+    foreach ($html->find($config['selector formula']) as $e) {
       $page_ranking ++;
-      if ($matched = call_user_func_array($platform['selector callback'], array($e, $product_id))) {
+      if ($matched = call_user_func_array($config['selector callback'], array($e, $product_id))) {
         $ranking += $page_ranking;
         return $matched;
       }
@@ -290,7 +311,7 @@ function tbtrack_ranking_remote_query($keyword, $product_id, $platform, &$rankin
   $ranking += $page_size;
   // TODO configurable page limit
   if ($ranking >= $page_size && $ranking < $page_size * 10 ) {
-    return tbtrack_ranking_remote_query($old_keyword, $product_id, $platform, $ranking, $ranking);
+    return tbtrack_ranking_remote_query($orig_keyword, $product_id, $platform, $ranking, $ranking);
   }
   return FALSE;
 }

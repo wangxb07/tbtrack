@@ -68,10 +68,88 @@ function _tbtrack_add_div($markup, $element) {
 }
 
 /**
+ * implements hook_tbtrack_platform_attach_params()
+ */
+function tbtrack_tbtrack_platform_attach_params() {
+  $params = array();
+  $params['ranking'] = array(
+    'search host' => array(
+      '#required' => TRUE,
+    ),
+    'search path' => array(
+      '#required' => TRUE,
+    ),
+    'selector callback' => array(
+      '#required' => TRUE,
+    ),
+    'selector formula' => array(
+      '#required' => TRUE,
+    ),
+    'page size' => array(
+      '#required' => FALSE,
+      '#default_value' => 60,
+    ),
+    'charset' => array(
+      '#required' => FALSE,
+      '#default_value' => 'UTF-8',
+    ),
+  );
+  return $params;
+}
+
+/**
  * Receive platform data from defined in this function and hook returns
  */
 function tbtrack_get_platform_info() {
-  return  module_invoke_all('tbtrack_platform_info');
+  $platforms = &drupal_static(__FUNCTION__);
+  if (!isset($platforms)) {
+    $platforms = module_invoke_all('tbtrack_platform_info');
+  }
+  return $platforms;
+}
+
+/**
+ * The function load detail platform infomations, and this function well
+ * attach default value by hook_tbtrack_platform_attach_info that hook can
+ * define module self platform infomations.
+ */
+function tbtrack_load_platform_info($name, $plugin = NULL) {
+  $platforms_attached = &drupal_static(__FUNCTION__);
+
+  if (isset($platforms_attached[$name])) {
+    if ($plugin !== NULL && !isset($platforms_attached[$name][$plugin])) {
+      watchdog('tbtrack', 'tbtrack plugin !plugin not defined for !name platform',
+        array('!plugin' => $plugin,  '!name' => $name));
+      return NULL;
+    } else {
+      return $platforms_attached[$name];
+    }
+  }
+  $platforms = tbtrack_get_platform_info();
+  if (!isset($platforms[$name])) {
+    return NULL;
+  }
+  $attach = module_invoke_all('tbtrack_platform_attach_params');
+
+  // validtion plugin params
+  foreach ($attach as $plugin_name => $definitions) {
+    if (!isset($platforms[$name][$plugin_name])) {
+      continue;
+    }
+    foreach ($definitions as $param_name => $definition) {
+      if (empty($platforms[$name][$plugin_name][$param_name])) {
+        if ($definition['#required']) {
+          watchdog('tbtrack', 'tbtrack plugin !plugin parameter !param must be specified',
+            array('!plugin' => $plugin_name, '!param' => $param_name));
+          break;
+        } else {
+          $platforms[$name][$plugin_name][$param_name] = $definition['#default_value'];
+        }
+      }
+    }
+  }
+  $platforms_attached[$name] = $platforms[$name];
+  return $platforms_attached[$name];
 }
 
 /**

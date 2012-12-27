@@ -11,15 +11,15 @@ function tbtrack_taobao_tbtrack_platform_info() {
       'title' => 'Taobao',
       // Specify a field used to store the product ID of the platform
       'field' => 'tbtrack_taobao_product_id',
-      'search uri' => array(
+      'ranking' => array(
         // http://s.taobao.com/search
-        'host' => 'http://s.taobao.com',
-        'path' => '/search',
+        'search host' => 'http://s.taobao.com',
+        'search path' => '/search',
+        'charset' => 'GBK',
+        'page size' => 40,
+        'selector callback' => '_tbtrack_taobao_selector',
+        'selector formula' => '#list-content li.list-item',
       ),
-      'charset' => 'GBK',
-      'page size' => 40,
-      'selector callback' => '_tbtrack_taobao_selector',
-      'selector formula' => '#list-content li.list-item',
     ),
   );
 }
@@ -29,7 +29,6 @@ function tbtrack_taobao_tbtrack_platform_info() {
  */
 function _tbtrack_taobao_selector($html, $product_id) {
   foreach ($html->find('div.photo>a') as $e) {
-    dd($e->tag);
     if ($e->tag == 'a') {
       $url = $e->href;
       $pattern = '/' . $product_id . '/';
