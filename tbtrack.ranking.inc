@@ -59,25 +59,31 @@ function tbtrack_ranking_query_all_form_submit() {
         }
       }
     }
-
-    $batch = array(
-      'operations' => array(
-        array('_tbtrack_ranking_batch_query_process', array($keywords))
-      ),
-      'finished' => '_tbtrack_ranking_batch_query_finished',
-      'title' => t('Processing'),
-      // We use a single multi-pass operation, so the default
-      // 'Remaining x of y operations' message will be confusing here.
-      'progress_message' => '',
-      'error_message' => t('The fetch ranking has encountered an error.'),
-      // The operations do not live in the .module file, so we need to
-      // tell the batch engine which file to load before calling them.
-      'file' => drupal_get_path('module', 'tbtrack') . '/tbtrack.module',
-    );
-    batch_set($batch);
+    tbtrack_ranking_batch_query_helper($keywords);
   } else {
     drupal_set_message(t('no product!'));
   }
+}
+
+/**
+ * tbtrack ranking betch query helper
+ */
+function tbtrack_ranking_batch_query_helper($keywords) {
+  $batch = array(
+    'operations' => array(
+      array('_tbtrack_ranking_batch_query_process', array($keywords))
+    ),
+    'finished' => '_tbtrack_ranking_batch_query_finished',
+    'title' => t('Processing'),
+    // We use a single multi-pass operation, so the default
+    // 'Remaining x of y operations' message will be confusing here.
+    'progress_message' => '',
+    'error_message' => t('The fetch ranking has encountered an error.'),
+    // The operations do not live in the .module file, so we need to
+    // tell the batch engine which file to load before calling them.
+    'file' => drupal_get_path('module', 'tbtrack') . '/tbtrack.ranking.inc',
+  );
+  batch_set($batch);
 }
 
 /**
@@ -232,7 +238,7 @@ function tbtrack_ranking_query_form_submit($form, &$form_state) {
 /**
  * fetch data function
  */
-function tbtrack_ranking_remote_query($keyword, $product_id, $platform, &$ranking = 0, $page_offset = NULL) {y
+function tbtrack_ranking_remote_query($keyword, $product_id, $platform, &$ranking = 0, $page_offset = NULL) {
   $old_keyword = $keyword;
   $charset = str_replace("-", "", strtolower($platform['charset']));
   if ($charset != 'utf8') {
@@ -288,4 +294,5 @@ function tbtrack_ranking_remote_query($keyword, $product_id, $platform, &$rankin
   }
   return FALSE;
 }
+
 
