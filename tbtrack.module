@@ -138,9 +138,7 @@ function tbtrack_node_view($node, $view_mode) {
     $product = entity_metadata_wrapper('node', $node->nid);
     $platforms = tbtrack_get_platform_info();
 
-    $node->content['ranking'] = array(
-      '#prefix' => 'Ranking'
-    );
+    $node->content['ranking'] = array('#prefix' => 'Ranking');
 
     foreach ($platforms as $name => $platform) {
       $result = db_select('tbtrack_ranking', 'r')->fields('r')
@@ -157,13 +155,86 @@ function tbtrack_node_view($node, $view_mode) {
         );
       }
 
-      $node->content['ranking'][$name] = array(
-        '#prefix' => t('<h4>Ranking table for !platform</h4>', array('!platform' => $platform['title'])),
+      $node->content['ranking'][$name . ' table'] = array(
         '#theme' => 'table',
         '#header' => $header,
         '#rows' => $rows,
         '#empty' => t('No content available.'),
       );
+      $node->content['ranking'][$name . ' form'] = drupal_get_form('tbtrack_ranking_query_' . $name . '_product_form', $product, $name, $platform);
     }
   }
 }
+
+/**
+ * implements hook_forms()
+ */
+function tbtrack_forms($form_id, $args) {
+  $forms = array();
+
+  foreach (tbtrack_get_platform_info() as $name => $platform) {
+    $forms['tbtrack_ranking_query_' . $name . '_product_form'] = array(
+      'callback' => 'tbtrack_query_product_button',
+    );
+  }
+
+  return $forms;
+}
+
+/**
+ * update product ranking info form
+ * @param EntityMetadataWrapper $product
+ * @param String $platform platform id (name)
+ * @param Array $platform_info
+ */
+function tbtrack_query_product_button($form, &$form_state, $product, $platform, $platform_info) {
+  $form['nid'] = array(
+    '#type' => 'hidden',
+    '#value' => $product->nid->value(),
+  );
+
+  $form['product_id'] = array(
+    '#type' => 'hidden',
+    '#value' => $product->$platform_info['field']->value(),
+  );
+
+  $form['platform'] = array(
+    '#type' => 'hidden',
+    '#value' => $platform,
+  );
+
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Update !platform ranking', array('!platform' => $platform)),
+  );
+
+  $form['#submit'][] = 'tbtrack_ranking_query_product_form_submit';
+
+  return $form;
+}
+
+/**
+ * submit callback for tbtrack_ranking_query_product_form
+ */
+function tbtrack_ranking_query_product_form_submit($form, &$form_state) {
+  if (empty($form_state['values']['product_id'])) {
+    drupal_set_message(t('product id not define!'));
+    return FALSE;
+  }
+
+  $keywords = array();
+  $product = entity_metadata_wrapper('node', $form_state['values']['nid']);
+  // all keywords for product
+  foreach ($product->field_keywords->value() as $keyword) {
+    $keywords[] = array(
+      'name' => $keyword->name,
+      'product_id' => $form_state['values']['product_id'],
+      'platform_info' => $platform,
+      'platform_name' => $name,
+    );
+  }
+  dd($keywords);
+  tbtrack_ranking_batch_query_helper($keywords);
+}
+
+// TODO define and implements tbtrack_load_platform function
