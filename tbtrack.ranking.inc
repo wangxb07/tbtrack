@@ -62,9 +62,9 @@ function tbtrack_ranking_query_all_form_submit() {
 
     $batch = array(
       'operations' => array(
-        array('_tbtrack_batch_query_process', array($keywords))
+        array('_tbtrack_ranking_batch_query_process', array($keywords))
       ),
-      'finished' => '_tbtrack_batch_query_finished',
+      'finished' => '_tbtrack_ranking_batch_query_finished',
       'title' => t('Processing'),
       // We use a single multi-pass operation, so the default
       // 'Remaining x of y operations' message will be confusing here.
@@ -83,7 +83,7 @@ function tbtrack_ranking_query_all_form_submit() {
 /**
  * Ranking Batch fetch process
  */
-function _tbtrack_batch_query_process($keywords, &$context) {
+function _tbtrack_ranking_batch_query_process($keywords, &$context) {
   if (!isset($context['sandbox']['progress'])) {
     $context['sandbox']['progress'] = 0;
     $context['sandbox']['max'] = count($keywords);
@@ -96,7 +96,7 @@ function _tbtrack_batch_query_process($keywords, &$context) {
   $context['sandbox']['progress']++;
 
   $ranking = 0;
-  $result = tbtrack_remote_query($keyword['name'], $keyword['product_id'], $keyword['platform_info'], $ranking);
+  $result = tbtrack_ranking_remote_query($keyword['name'], $keyword['product_id'], $keyword['platform_info'], $ranking);
   if ($result) {
     tbtrack_ranking_insert($keyword['name'], $keyword['product_id'], $keyword['platform_name'], $ranking);
   } else {
@@ -111,7 +111,7 @@ function _tbtrack_batch_query_process($keywords, &$context) {
 /**
  * Ranking batch fetch finished callback
  */
-function _tbtrack_batch_query_finished($success, $results, $operations) {
+function _tbtrack_ranking_batch_query_finished($success, $results, $operations) {
   if ($success) {
     drupal_set_message(t('The ranking fetch has been performed.'));
   }
@@ -181,7 +181,7 @@ function tbtrack_ranking_query_form($form, &$form_state) {
     }
     $ranking = 0;
     $product_id = $form_state['values'][$platform['field']];
-    if($result = tbtrack_remote_query($keyword, $product_id, $platform, $ranking)) {
+    if($result = tbtrack_ranking_remote_query($keyword, $product_id, $platform, $ranking)) {
       $form['results'][$name]['product'] = array(
         '#post_render' => array('_tbtrack_add_div'),
         '#prefix' => '<label>' . $platform['title'] . 'Product ID: </label>',
@@ -232,7 +232,7 @@ function tbtrack_ranking_query_form_submit($form, &$form_state) {
 /**
  * fetch data function
  */
-function tbtrack_remote_query($keyword, $product_id, $platform, &$ranking = 0, $page_offset = NULL) {
+function tbtrack_ranking_remote_query($keyword, $product_id, $platform, &$ranking = 0, $page_offset = NULL) {y
   $old_keyword = $keyword;
   $charset = str_replace("-", "", strtolower($platform['charset']));
   if ($charset != 'utf8') {
@@ -284,51 +284,8 @@ function tbtrack_remote_query($keyword, $product_id, $platform, &$ranking = 0, $
   $ranking += $page_size;
   // TODO configurable page limit
   if ($ranking >= $page_size && $ranking < $page_size * 10 ) {
-    return tbtrack_remote_query($old_keyword, $product_id, $platform, $ranking, $ranking);
+    return tbtrack_ranking_remote_query($old_keyword, $product_id, $platform, $ranking, $ranking);
   }
   return FALSE;
 }
 
-/**
- * Implements hook_node_view().
- */
-function tbtrack_node_view($node, $view_mode) {
-  if ($view_mode == 'full' && $node->type == 'products') {
-    $header = array(
-      'keyword' => array('data' => t('Keyword'), 'field' => 'keyword'),
-      'ranking' => array('data' => t('Ranking'), 'field' => 'ranking'),
-      'created' => array('data' => t('Created'), 'field' => 'created', 'sort' => 'desc'),
-    );
-
-    $product = entity_metadata_wrapper('node', $node->nid);
-    $platforms = tbtrack_get_platform_info();
-
-    $node->content['ranking'] = array(
-      '#prefix' => 'Ranking'
-    );
-
-    foreach ($platforms as $name => $platform) {
-      $result = db_select('tbtrack_ranking', 'r')->fields('r')
-        ->condition('product_id', $product->{$platform['field']}->value())
-        ->condition('platform', $name)
-        ->execute();
-
-      $rows = array();
-      while ($record = $result->fetchAssoc()) {
-        $rows[$record['rid']] = array(
-          'keyword' => $record['keyword'],
-          'ranking' => $record['ranking'],
-          'created' => format_date($record['created'], 'short'),
-        );
-      }
-
-      $node->content['ranking'][$name] = array(
-        '#prefix' => t('<h4>Ranking table for !platform</h4>', array('!platform' => $platform['title'])),
-        '#theme' => 'table',
-        '#header' => $header,
-        '#rows' => $rows,
-        '#empty' => t('No content available.'),
-      );
-    }
-  }
-}
