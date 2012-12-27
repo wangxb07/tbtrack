@@ -283,7 +283,7 @@ function _tbtrack_fetch_data($keyword, $product_id, $platform, &$ranking = 0, $p
   $page_ranking = 0;
 
   // TODO configurable page size
-  $page_size = 60;
+  $page_size = $platform['page size'];
 
   // TODO configurable header info
   $options['max_redirects'] = 255;
