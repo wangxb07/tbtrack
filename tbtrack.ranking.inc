@@ -4,6 +4,7 @@
  * @file The file for Tbtrack ranking feature
  */
 
+
 /**
  * tbtrack module ranking function instructions callback
  */
@@ -82,7 +83,6 @@ function _tbtrack_ranking_batch_query_process($keywords, &$context) {
   // Process nodes by groups of 1.
   $keyword = array_shift($context['sandbox']['keywords']);
   // Update our progress information.
-  dd($context['sandbox']['progress']);
   $context['sandbox']['progress']++;
 
   $ranking = 0;
@@ -90,7 +90,7 @@ function _tbtrack_ranking_batch_query_process($keywords, &$context) {
   if ($result) {
     tbtrack_ranking_insert($keyword['name'], $keyword['product_id'], $keyword['platform'], $ranking);
   } else {
-    dd(t('!keyword !product_id out of ranking', array('!keyword' => $keyword['name'], '!product_id' => $product_id)));
+    dd(t('!keyword !product_id out of ranking', array('!keyword' => $keyword['name'], '!product_id' => $keyword['product_id'])));
   }
 
   if ($context['sandbox']['progress'] != $context['sandbox']['max']) {
@@ -189,7 +189,7 @@ function tbtrack_ranking_query_form($form, &$form_state) {
       );
       $form['results'][$name]['product info'] = array(
         '#post_render' => array('_tbtrack_add_div'),
-        '#prefix' => '<label>Product infomation: </label>',
+        '#prefix' => '<label>Product information: </label>',
         '#markup' => $result->plaintext,
       );
     } else {
@@ -294,5 +294,4 @@ function tbtrack_ranking_remote_query($keyword, $product_id, $platform, &$rankin
   }
   return FALSE;
 }
-
 

@@ -5,6 +5,9 @@
  * fetch data from taobao and, generate the report for product ranking
  */
 
+define('TBTRACK_RANKING_TABLE_TYPE_ALL', 100);
+define('TBTRACK_RANKING_TABLE_TYPE_AVG', 101);
+
 function tbtrack_menu() {
   $menu = array();
 
@@ -47,6 +50,16 @@ function tbtrack_menu() {
     'access callback' => TRUE,
     'file' => 'tbtrack.ranking.inc',
     'weight' => 5,
+  );
+
+  $items['node/%node/tbtrack'] = array(
+    'title' => 'Taobao tracker',
+    'page callback' => 'tbtrack_ranking_product_report_default',
+    'page arguments' => array(1),
+    'access arguments' => TRUE,
+    'type' => MENU_LOCAL_TASK,
+    'file' => 'tbtrack.pages.inc',
+    'weight' => 100,
   );
 
   return $menu;
@@ -109,9 +122,9 @@ function tbtrack_get_platform_info() {
 }
 
 /**
- * The function load detail platform infomations, and this function well
+ * The function load detail platform informations, and this function well
  * attach default value by hook_tbtrack_platform_attach_info that hook can
- * define module self platform infomations.
+ * define module self platform informations.
  */
 function tbtrack_load_platform_info($name, $plugin = NULL) {
   $platforms_attached = &drupal_static(__FUNCTION__);
@@ -207,41 +220,28 @@ function tbtrack_delete_field_product_id($field_name) {
  */
 function tbtrack_node_view($node, $view_mode) {
   if ($view_mode == 'full' && $node->type == 'products') {
-    $header = array(
-      'keyword' => array('data' => t('Keyword'), 'field' => 'keyword'),
-      'ranking' => array('data' => t('Ranking'), 'field' => 'ranking'),
-      'created' => array('data' => t('Created'), 'field' => 'created', 'sort' => 'desc'),
-    );
-
-    $product = entity_metadata_wrapper('node', $node->nid);
-    $platforms = tbtrack_get_platform_info();
-
-    $node->content['ranking'] = array('#prefix' => 'Ranking');
-
-    foreach ($platforms as $name => $platform) {
-      $result = db_select('tbtrack_ranking', 'r')->fields('r')
-        ->condition('product_id', $product->{$platform['field']}->value())
-        ->condition('platform', $name)
-        ->execute();
-
-      $rows = array();
-      while ($record = $result->fetchAssoc()) {
-        $rows[$record['rid']] = array(
-          'keyword' => $record['keyword'],
-          'ranking' => $record['ranking'],
-          'created' => format_date($record['created'], 'short'),
-        );
-      }
-
-      $node->content['ranking'][$name . ' table'] = array(
-        '#theme' => 'table',
-        '#header' => $header,
-        '#rows' => $rows,
-        '#empty' => t('No content available.'),
-      );
-      $node->content['ranking'][$name . ' form'] = drupal_get_form('tbtrack_ranking_query_' . $name . '_product_form', $product, $name, $platform);
+    foreach (tbtrack_get_platform_info() as $name => $platform) {
+      module_invoke_all('tbtrack_product_node_view', $node, $view_mode, $name);
     }
   }
+}
+
+/**
+ * implements hook_tbtrack_product_node_view()
+ */
+function tbtrack_tbtrack_product_node_view($node, $view_mode, $platform) {
+  $product = entity_metadata_wrapper('node', $node->nid);
+
+  $node->content['ranking ' . $platform]['#post_render'] = array('_tbtrack_add_div');
+
+  $node->content['ranking ' . $platform]['title'] = array(
+    '#markup' => t('Information for platform !platform', array('!platform' => $platform)),
+    '#post_render' => array('_tbtrack_add_div'),
+  );
+
+  $node->content['ranking ' . $platform]['all table'] = tbtrack_ranking_build_table($product, $platform, TBTRACK_RANKING_TABLE_TYPE_ALL);
+  $node->content['ranking ' . $platform]['avg table'] = tbtrack_ranking_build_table($product, $platform, TBTRACK_RANKING_TABLE_TYPE_AVG);
+  $node->content['ranking ' . $platform]['form'] = drupal_get_form('tbtrack_ranking_query_' . $platform . '_product_form', $product, $platform);
 }
 
 /**
@@ -265,7 +265,9 @@ function tbtrack_forms($form_id, $args) {
  * @param String $platform platform id (name)
  * @param Array $platform_info
  */
-function tbtrack_query_product_button($form, &$form_state, $product, $platform, $platform_info) {
+function tbtrack_query_product_button($form, &$form_state, $product, $platform) {
+  $platform_info = tbtrack_load_platform_info($platform);
+
   $form['nid'] = array(
     '#type' => 'hidden',
     '#value' => $product->nid->value(),
@@ -332,5 +334,95 @@ function tbtrack_ranking_batch_query_helper($keywords) {
     'file' => drupal_get_path('module', 'tbtrack') . '/tbtrack.ranking.inc',
   );
   batch_set($batch);
+}
+
+/**
+ * table 'factory' function
+ */
+function tbtrack_ranking_build_table($product, $platform, $type) {
+  switch($type) {
+    case TBTRACK_RANKING_TABLE_TYPE_ALL:
+      return _tbtrack_ranking_build_table_all($product, $platform);
+    case TBTRACK_RANKING_TABLE_TYPE_AVG:
+      return _tbtrack_ranking_build_table_avg($product, $platform);
+  }
+}
+
+/**
+ * buidler for total records table
+ */
+function _tbtrack_ranking_build_table_all($product, $platform) {
+  $platform_info = tbtrack_load_platform_info($platform);
+
+  // define table header
+  $header = array(
+    'keyword' => array('data' => t('Keyword'), 'field' => 'keyword'),
+    'ranking' => array('data' => t('Ranking'), 'field' => 'ranking'),
+    'created' => array('data' => t('Created'), 'field' => 'created', 'sort' => 'desc'),
+  );
+
+  // run db select query
+  $query = db_select('tbtrack_ranking', 'r')->fields('r')
+    ->extend('TableSort')
+    ->extend('PagerDefault');
+
+  $query->orderByHeader($header);
+
+  $result = $query->condition('product_id', $product->{$platform_info['field']}->value())
+    ->condition('platform', $platform)
+    ->limit(10)
+    ->execute();
+
+  $rows = array();
+  while ($record = $result->fetchAssoc()) {
+    $rows[$record['rid']] = array(
+      'keyword' => $record['keyword'],
+      'ranking' => $record['ranking'],
+      'created' => format_date($record['created'], 'short'),
+    );
+  }
+
+  return array(
+    'table' => array(
+      '#theme' => 'table',
+      '#header' => $header,
+      '#rows' => $rows,
+      '#empty' => t('No content available.'),
+    ),
+    'pager' => array(
+      '#theme' => 'pager'
+    )
+  );
+}
+
+function _tbtrack_ranking_build_table_avg($product, $platform) {
+  $platform_info = tbtrack_load_platform_info($platform);
+  $query = db_select('tbtrack_ranking', 'r')->fields('r', array('rid', 'keyword'));
+  $query->addExpression('AVG(ranking)', 'avg_ranking');
+  $query->groupBy('keyword');
+
+  $query->condition('product_id', $product->{$platform_info['field']}->value())
+    ->condition('platform', $platform);
+
+  $result = $query->execute();
+
+  $rows = array();
+  while ($record = $result->fetchAssoc()) {
+    $rows[$record['rid']] = array(
+      'keyword' => $record['keyword'],
+      'ranking' => (int)$record['avg_ranking'],
+    );
+  }
+  // define table header
+  $header = array(
+    'keyword' => array('data' => t('Keyword'), 'field' => 'keyword'),
+    'ranking' => array('data' => t('Ranking Avg'), 'field' => 'ranking'),
+  );
+  return array(
+    '#theme' => 'table',
+    '#header' => $header,
+    '#rows' => $rows,
+    '#empty' => t('No content available.'),
+  );
 }
 

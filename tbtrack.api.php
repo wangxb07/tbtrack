@@ -52,3 +52,32 @@ function hook_tbtrack_platform_attach_params() {
     ),
   );
 }
+
+/**
+ * The hook implements for append everything to product node content
+ * @param node entity $node
+ * @param string $view_mode
+ * @param string $platform platform name
+ */
+function hook_tbtrack_product_node_view($node, $view_mode, $platform) {
+  $result = db_select('tbtrack_ranking', 'r')->fields('r')
+    ->condition('product_id', $product->{$platform['field']}->value())
+    ->condition('platform', $name)
+    ->execute();
+
+  $rows = array();
+  while ($record = $result->fetchAssoc()) {
+    $rows[$record['rid']] = array(
+      'keyword' => $record['keyword'],
+      'ranking' => $record['ranking'],
+      'created' => format_date($record['created'], 'short'),
+    );
+  }
+
+  $node->content['ranking'][$name . ' table'] = array(
+    '#theme' => 'table',
+    '#header' => $header,
+    '#rows' => $rows,
+    '#empty' => t('No content available.'),
+  );
+}
