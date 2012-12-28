@@ -65,27 +65,6 @@ function tbtrack_ranking_query_all_form_submit() {
 }
 
 /**
- * tbtrack ranking betch query helper
- */
-function tbtrack_ranking_batch_query_helper($keywords) {
-  $batch = array(
-    'operations' => array(
-      array('_tbtrack_ranking_batch_query_process', array($keywords))
-    ),
-    'finished' => '_tbtrack_ranking_batch_query_finished',
-    'title' => t('Processing'),
-    // We use a single multi-pass operation, so the default
-    // 'Remaining x of y operations' message will be confusing here.
-    'progress_message' => '',
-    'error_message' => t('The fetch ranking has encountered an error.'),
-    // The operations do not live in the .module file, so we need to
-    // tell the batch engine which file to load before calling them.
-    'file' => drupal_get_path('module', 'tbtrack') . '/tbtrack.ranking.inc',
-  );
-  batch_set($batch);
-}
-
-/**
  * Ranking Batch fetch process
  */
 function _tbtrack_ranking_batch_query_process($keywords, &$context) {
