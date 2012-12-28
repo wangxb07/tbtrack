@@ -88,7 +88,7 @@ function hook_tbtrack_product_node_view($node, $view_mode, $platform) {
  * @param EntityMetadataWrapper $product
  * @param string $platform platform name
  */
-function hook_tbtrack_ranking_product_report_platform(&$output, $product, $platform) {
+function hook_tbtrack_ranking_product_report_platform($product, $platform) {
   // build yourself array for rander
   $output['title'] = array('#markup' => 'Hello world');
 }
