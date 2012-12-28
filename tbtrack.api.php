@@ -81,3 +81,14 @@ function hook_tbtrack_product_node_view($node, $view_mode, $platform) {
     '#empty' => t('No content available.'),
   );
 }
+
+/**
+ * The hook implements for append everything to product ranking platform report
+ * @param array $output render array
+ * @param EntityMetadataWrapper $product
+ * @param string $platform platform name
+ */
+function hook_tbtrack_ranking_product_report_platform(&$output, $product, $platform) {
+  // build yourself array for rander
+  $output['title'] = array('#markup' => 'Hello world');
+}

@@ -52,15 +52,31 @@ function tbtrack_menu() {
     'weight' => 5,
   );
 
-  $items['node/%node/tbtrack'] = array(
-    'title' => 'Taobao tracker',
+  $menu['node/%node/tbtrack-ranking'] = array(
+    'title' => t('TBTrack Ranking'),
     'page callback' => 'tbtrack_ranking_product_report_default',
     'page arguments' => array(1),
-    'access arguments' => TRUE,
+    'access callback' => TRUE,
     'type' => MENU_LOCAL_TASK,
     'file' => 'tbtrack.pages.inc',
     'weight' => 100,
   );
+
+  $menu['node/%node/tbtrack-ranking/default'] = array(
+    'title' => 'Default',
+    'type' => MENU_DEFAULT_LOCAL_TASK,
+  );
+
+  foreach (tbtrack_get_platform_info() as $platform_name => $platform_info) {
+    $menu['node/%node/tbtrack-ranking/' . $platform_name] = array(
+      'title' => $platform_info['title'],
+      'page callback' => 'tbtrack_ranking_product_report_platform',
+      'page arguments' => array(1, $platform_name),
+      'access callback' => TRUE,
+      'type' => MENU_LOCAL_TASK,
+      'file' => 'tbtrack.pages.inc',
+    );
+  }
 
   return $menu;
 }

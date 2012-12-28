@@ -6,6 +6,7 @@ dependencies[] = simplehtmldom
 dependencies[] = entity
 
 files[] = tbtrack.ranking.inc
+files[] = tbtrack.pages.inc
 
 core = 7.x
 version = 7.x-1.0-alpha
