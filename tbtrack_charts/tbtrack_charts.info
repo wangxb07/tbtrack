@@ -3,8 +3,10 @@ description = The basic charts for taobao tracker
 
 package = Taobao
 
+files[] = includes/data.inc
+files[] = includes/options.inc
+
 dependencies[] = tbtrack
-dependencies[] = highcharts
 
 core = 7.x
 version = 7.x-1.0-alpha

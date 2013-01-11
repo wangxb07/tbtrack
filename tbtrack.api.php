@@ -84,7 +84,7 @@ function hook_tbtrack_product_node_view($node, $view_mode, $platform) {
 
 /**
  * The hook implements for append everything to product ranking platform report
- * @param EntityMetadataWrapper $product
+ * @param array $variables
  * @param string $platform platform name
  */
 function hook_tbtrack_ranking_product_report_platform(&$variables) {
@@ -94,9 +94,7 @@ function hook_tbtrack_ranking_product_report_platform(&$variables) {
 
 /**
  * The hook implements for append everything to keyword ranking report
- * @param EntityMetadataWrapper $product
- * @param string $platform platform name
- * @param term stdClass $keyword
+ * @param array $variables
  */
 function hook_tbtrack_ranking_keyword_report_platform(&$variables) {
 

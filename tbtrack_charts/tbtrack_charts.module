@@ -4,8 +4,112 @@
  * @file module file for tbtrack_charts
  */
 
-function tbtrack_charts_tbtrack_ranking_product_report_platform($product, $platform) {
-  // build yourself array for rander
+/**
+ * implements hook_tbtrack_ranking_product_report_platform
+ */
+function tbtrack_charts_tbtrack_ranking_product_report_platform($variables) {
+  $product = $variables['#product'];
+  $platform = $variables['#platform'];
+  $platform_info = tbtrack_load_platform_info($platform);
+  // get keywords average data
+  $query = db_select('tbtrack_ranking', 'r')->fields('r', array('rid', 'keyword'));
+  $query->addExpression('AVG(ranking)', 'avg_ranking');
+  $query->groupBy('keyword');
 
-  // Daily average of product ranking
+  $query->condition('product_id', $product->{$platform_info['field']}->value())
+    ->condition('platform', $platform);
+
+  $result = $query->execute();
+
+  $data = array();
+
+  while ($record = $result->fetchAssoc()) {
+    $data['keyword'][$record['rid']] = $record['keyword'];
+    $data['ranking'][$record['rid']] = (int)$record['avg_ranking'];
+  }
+
+  $page['chart'] = array(
+    '#theme' => 'google_column_chart',
+    '#chart_id' => 'ranking-chart-avg-' . $product->nid->value(),
+    '#options' => array(
+      'title' => t('Average Ranking'),
+      'hAxis' => array(
+        'title' => 'keyword'
+      ),
+    ),
+    '#data' => $data,
+  );
+  return $page;
+}
+
+/**
+ * implements hook_tbtrack_ranking_keyword_report_platform
+ */
+function tbtrack_charts_tbtrack_ranking_keyword_report_platform(&$variables) {
+  $product = $variables['#product'];
+  $platform = $variables['#platform'];
+  $keyword = $variables['#keyword'];
+
+  $platform_info = tbtrack_load_platform_info($platform);
+
+  $query = db_select('tbtrack_ranking', 'r')->extend('PagerDefault')
+    ->fields('r', array('rid', 'keyword', 'ranking', 'created'))
+    ->condition('product_id', $product->{$platform_info['field']}->value())
+    ->condition('platform', $platform)
+    ->condition('keyword', $keyword->name)
+    ->limit(10)
+    ->orderBy('created', 'DESC');
+
+  $result = $query->execute();
+
+  $data = array();
+  while ($record = $result->fetchAssoc()) {
+    $data['created'][$record['rid']] = format_date($record['created'], 'short');
+    $data['ranking'][$record['rid']] = (int)$record['ranking'];
+  }
+  $page['chart'] = array(
+    '#theme' => 'google_line_chart',
+    '#chart_id' => 'ranking-keyword-' . $keyword->tid,
+    '#options' => array(
+      'title' => t('!keyword ranking', array('!keyword' => $keyword->name)),
+    ),
+    '#data' => $data,
+  );
+  return $page;
+}
+
+/**
+ * implements hook_theme()
+ */
+function tbtrack_charts_theme() {
+  return array(
+    'google_column_chart' => array(
+      'render element' => 'chart',
+      'template' => 'google-column-chart',
+    ),
+    'google_line_chart' => array(
+      'render element' => 'chart',
+      'template' => 'google-line-chart',
+    ),
+  );
+}
+
+/**
+ * google_column_chart theme proprecess function
+ */
+function template_preprocess_google_column_chart(&$variables) {
+  drupal_add_js('https://www.google.com/jsapi', 'external');
+  $chart = $variables['chart'];
+  $variables['data'] = new ArrayDataStore($chart['#data']);
+  $variables['options'] = new Options($chart['#options']);
+}
+
+/**
+ * google_column_chart theme proprecess function
+ */
+function template_preprocess_google_line_chart(&$variables) {
+  drupal_add_js('https://www.google.com/jsapi', 'external');
+  $chart = $variables['chart'];
+  $variables['data'] = new ArrayDataStore($chart['#data']);
+  $variables['options'] = new Options($chart['#options']);
 }

@@ -80,23 +80,33 @@ function tbtrack_ranking_product_report_platform($node, $platform) {
     $variables['#keyword'] = $keyword;
     $keyword_table['table'] = tbtrack_ranking_build_table($variables);
 
-    $output['tables']['keywords'][$keyword->tid] = $keyword_table;
+    $keyword_table['extends'] = array(
+        '#type' => 'container',
+        '#attributes' => array(
+            'classes' => array('keywords-extends-report')
+        )
+    );
 
-    $keyword_extends = array();
     $keyword_extends = module_invoke_all('tbtrack_ranking_keyword_report_platform', $variables);
     if (is_array($keyword_extends)) {
-      foreach($keyword_extends as $extend) {
-        $output = array_merge($output, $extends);
+      foreach($keyword_extends as $key => $extend) {
+        $keyword_table['extends'][$key] = $extend;
       }
     }
+    $output['tables']['keywords'][$keyword->tid] = $keyword_table;
   }
 
-  unset($variables['#type']);
-
   $extends = module_invoke_all('tbtrack_ranking_product_report_platform', $variables);
+
+  $output['extends'] = array(
+      '#type' => 'container',
+      '#attributes' => array(
+          'classes' => array('extends-report')
+      )
+  );
   if (is_array($extends)) {
-    foreach($extends as $extend) {
-      $output = array_merge($output, $extends);
+    foreach($extends as $key => $extend) {
+      $output['extends'][$key] = $extend;
     }
   }
 
