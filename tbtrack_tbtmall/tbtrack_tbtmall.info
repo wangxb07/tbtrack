@@ -1,0 +1,9 @@
+name = Taobao Tracker TaoBaoTMall
+description = Tracker for tmall product ranking in taobao search result
+package = Taobao
+
+dependencies[] = tbtrack
+dependencies[] = tbtrack_product
+
+core = 7.x
+version = 7.x-1.0-alpha

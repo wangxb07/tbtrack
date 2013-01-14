@@ -1,0 +1,42 @@
+<?php
+
+/**
+ * @file
+ * define tbtmall platform info and implements selector callback
+ */
+
+function tbtrack_tbtmall_tbtrack_platform_info() {
+  return array(
+    'tbtmall' => array(
+      'title' => 'Taobao TMall',
+      // Specify a field used to store the product ID of the platform
+      'field' => 'tbtrack_tmall_product_id',
+      'ranking' => array(
+        // http://s.taobao.com/search with query tab=mall
+        'search host' => 'http://s.taobao.com',
+        'search path' => '/search',
+        'search query' => array('tab' => 'mall'),
+        'charset' => 'GBK',
+        'page size' => 40,
+        'selector callback' => '_tbtrack_tbtmall_selector',
+        'selector formula' => '#list-content li.list-item',
+      ),
+    ),
+  );
+}
+
+/**
+ * The selector for taobao that to determine whether the elements matched
+ */
+function _tbtrack_tbtmall_selector($html, $product_id) {
+  foreach ($html->find('div.photo>a') as $e) {
+    if ($e->tag == 'a') {
+      $url = $e->href;
+      $pattern = '/' . $product_id . '/';
+      if (preg_match($pattern, $url)) {
+        return $html;
+      }
+    }
+  }
+  return FALSE;
+}
