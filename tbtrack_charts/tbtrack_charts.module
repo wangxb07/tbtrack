@@ -45,7 +45,7 @@ function tbtrack_charts_tbtrack_ranking_product_report_platform($variables) {
 /**
  * implements hook_tbtrack_ranking_keyword_report_platform
  */
-function tbtrack_charts_tbtrack_ranking_keyword_report_platform(&$variables) {
+function tbtrack_charts_tbtrack_ranking_keyword_report_platform($variables) {
   $product = $variables['#product'];
   $platform = $variables['#platform'];
   $keyword = $variables['#keyword'];

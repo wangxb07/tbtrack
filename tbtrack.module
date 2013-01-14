@@ -109,6 +109,10 @@ function tbtrack_tbtrack_platform_attach_params() {
     'search path' => array(
       '#required' => TRUE,
     ),
+    'search query' => array(
+      '#required' => FALSE,
+      '#default_value' => array(),
+    ),
     'selector callback' => array(
       '#required' => TRUE,
     ),
@@ -526,14 +530,21 @@ function tbtrack_ranking_remote_query($keyword, $product_id, $platform, &$rankin
   $options['max_redirects'] = 255;
   $options['headers']['User-Agent'] = 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:17.0) Gecko/20100101 Firefox/17.0';
 
+  $query_str = '';
+  if (count($config['search query'])>0) {
+    foreach ($config['search query'] as $key=>$param) {
+      $query_str .= '&' . $key . "=" . $param;
+    }
+  }
   // build url
   if ($page_offset === NULL) {
-    $url = $config['search host'] . $config['search path'] . "?q=" . urlencode($keyword);
+    $url = $config['search host'] . $config['search path'] . "?q=" . urlencode($keyword) . $query_str;
   } else {
     $url = $config['search host'] . $config['search path']
       . "?q=" . urlencode($keyword)
       . "&n=" . $page_size
-      . "&s=" . $page_offset;
+      . "&s=" . $page_offset
+      . $query_str;
   }
 
   // send request
@@ -551,13 +562,18 @@ function tbtrack_ranking_remote_query($keyword, $product_id, $platform, &$rankin
       $page_ranking ++;
       if ($matched = call_user_func_array($config['selector callback'], array($e, $product_id))) {
         $ranking += $page_ranking;
+        // destroy html
+        $html->clear();
         return $matched;
       }
     }
   } else {
     return FALSE;
   }
-
+  // destroy html
+  if ($html) {
+    $html->clear();
+  }
   $ranking += $page_size;
   // TODO configurable page limit
   if ($ranking >= $page_size && $ranking < $page_size * 5 ) {
