@@ -490,3 +490,92 @@ function _tbtrack_ranking_build_table_keyword($product, $platform, $keyword) {
   );
 }
 
+/**
+ * query remote ranking info helper function
+ *
+ * @param String $keyword
+ * @param String $product_id platform product id
+ * @param String $platform platform name
+ * @param Integer $ranking
+ * @param Integer $page_offset
+ *
+ * @return html element | FALSE
+ */
+function tbtrack_ranking_remote_query($keyword, $product_id, $platform, &$ranking = 0, $page_offset = NULL) {
+  $platform_info = tbtrack_load_platform_info($platform, 'ranking');
+
+  if (empty($platform_info)) {
+    return FALSE;
+  }
+
+  $config = $platform_info['ranking'];
+
+  $orig_keyword = $keyword;
+  $charset = str_replace("-", "", strtolower($config['charset']));
+  if ($charset != 'utf8') {
+    $keyword = iconv('UTF-8', $charset, $orig_keyword);
+  }
+
+  // current page ranking
+  $page_ranking = 0;
+
+  // TODO configurable page size
+  $page_size = $config['page size'];
+
+  // TODO configurable header info
+  $options['max_redirects'] = 255;
+  $options['headers']['User-Agent'] = 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:17.0) Gecko/20100101 Firefox/17.0';
+
+  // build url
+  if ($page_offset === NULL) {
+    $url = $config['search host'] . $config['search path'] . "?q=" . urlencode($keyword);
+  } else {
+    $url = $config['search host'] . $config['search path']
+      . "?q=" . urlencode($keyword)
+      . "&n=" . $page_size
+      . "&s=" . $page_offset;
+  }
+
+  // send request
+  $response = drupal_http_request($url, $options);
+
+  // process result by platform selector callback
+  if ($response->code == 200) {
+    if ($charset != 'utf8') {
+      $html = str_get_html(iconv($charset, 'UTF-8', $response->data));
+    } else {
+      $html = str_get_html($response->data);
+    }
+
+    foreach ($html->find($config['selector formula']) as $e) {
+      $page_ranking ++;
+      if ($matched = call_user_func_array($config['selector callback'], array($e, $product_id))) {
+        $ranking += $page_ranking;
+        return $matched;
+      }
+    }
+  } else {
+    return FALSE;
+  }
+
+  $ranking += $page_size;
+  // TODO configurable page limit
+  if ($ranking >= $page_size && $ranking < $page_size * 5 ) {
+    return tbtrack_ranking_remote_query($orig_keyword, $product_id, $platform, $ranking, $ranking);
+  }
+  return FALSE;
+}
+
+/**
+ * insert ranking info into database
+ */
+function tbtrack_ranking_insert($keyword, $product_id, $platform, $ranking) {
+  return db_insert('tbtrack_ranking')->fields(array(
+      'keyword' => $keyword,
+      'product_id' => $product_id,
+      'platform' => $platform,
+      'ranking' => $ranking,
+      'created' => time()
+    ))->execute();
+}
+
