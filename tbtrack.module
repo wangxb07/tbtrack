@@ -163,6 +163,9 @@ function tbtrack_load_platform_info($name, $plugin = NULL) {
   if (!isset($platforms[$name])) {
     return NULL;
   }
+  if ($plugin !== NULL && !isset($platforms[$name][$plugin])) {
+    return NULL;
+  }
   $attach = module_invoke_all('tbtrack_platform_attach_params');
 
   // validtion plugin params
