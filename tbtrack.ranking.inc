@@ -90,7 +90,7 @@ function _tbtrack_ranking_batch_query_process($keywords, &$context) {
   if ($result) {
     tbtrack_ranking_insert($keyword['name'], $keyword['product_id'], $keyword['platform'], $ranking);
   } else {
-    dd(t('!keyword !product_id out of ranking', array('!keyword' => $keyword['name'], '!product_id' => $keyword['product_id'])));
+    tbtrack_ranking_insert($keyword['name'], $keyword['product_id'], $keyword['platform'], 0);
   }
 
   if ($context['sandbox']['progress'] != $context['sandbox']['max']) {

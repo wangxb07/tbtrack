@@ -531,7 +531,7 @@ function tbtrack_fetchall_ranking_drush() {
             tbtrack_ranking_insert($keyword->name, $product_id, $name, $ranking);
           }
           else {
-            drush_print(t('!keyword !product_id out of ranking', array('!keyword' => $keyword->name, '!product_id' => $product_id)));
+            tbtrack_ranking_insert($keyword->name, $product_id, $name, 0);
           }
         }
       }
